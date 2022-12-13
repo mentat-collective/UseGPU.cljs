@@ -1,0 +1,43 @@
+{:tasks
+ {sha
+  (let [sha (-> (shell {:out :string} "git rev-parse HEAD")
+                (:out)
+                (clojure.string/trim))
+        file "public/index.html"]
+    (-> (slurp file)
+        (clojure.string/replace "$GIT_SHA" sha)
+        (->> (spit file))))
+
+  dev-notebook
+  (do (shell "npm install")
+      (shell "npm run watch-clerk"))
+
+  start-clerk
+  (shell "clojure -X:dev:nextjournal/clerk user/start!")
+
+  publish-gh-pages
+  (do (shell "npm ci")
+      (shell "npm run release-clerk")
+      (shell "clojure -X:dev:nextjournal/clerk user/github-pages!")
+      (run 'sha)
+      (spit "./public/CNAME" "usegpu.mentat.org")
+
+      ;; This is necessary for folders with underscores to work, like the one
+      ;; that Clerk uses to store data for its CAS.
+      (spit "./public/.nojekyll" ""))
+
+  release-gh-pages
+  (do (shell "rm -rf public")
+      (run 'publish-gh-pages)
+      (shell "npm run gh-pages"))
+
+  publish-local
+  (do (run 'publish-gh-pages)
+      (shell "npm run serve"))
+
+  release
+  (shell "clojure -T:build publish")
+
+  lint
+  (apply shell (into ["clj-kondo --lint src:dev"]
+                     *command-line-args*))}}
